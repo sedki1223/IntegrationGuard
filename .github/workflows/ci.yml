@@ -1,0 +1,74 @@
+
+name: Integration Guard CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-demo:
+    name: Test and validate demo scenarios
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          files="$(gofmt -l ./cmd ./internal)"
+          if [ -n "$files" ]; then
+            echo "These Go files need gofmt:"
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Verify successful integration
+        run: |
+          go run ./cmd/integration-guard \
+            -report ./reports/ci-success.json
+
+      - name: Verify invalid integration is rejected
+        shell: bash
+        run: |
+          set +e
+          output="$(go run ./cmd/integration-guard \
+            -source ./testdata/source-failure.json \
+            -destination ./testdata/destination-failure.json \
+            -report ./reports/ci-failure.json 2>&1)"
+          status=$?
+          set -e
+
+          echo "$output"
+
+          if [ "$status" -eq 0 ]; then
+            echo "Expected invalid data to fail validation."
+            exit 1
+          fi
+
+          if ! echo "$output" | grep -q "validation failed"; then
+            echo "The command failed for a reason other than validation."
+            exit 1
+          fi
+
+          if [ ! -f ./reports/ci-failure.json ]; then
+            echo "Expected failure report was not generated."
+            exit 1
+          fi
+
+          grep -q '"value_mismatch"' ./reports/ci-failure.json
+          grep -q '"missing_destination_record"' ./reports/ci-failure.json
+          grep -q '"unexpected_destination_record"' ./reports/ci-failure.json

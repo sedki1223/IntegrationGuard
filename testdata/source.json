@@ -1,0 +1,18 @@
+
+[
+  {
+    "employee_id": "00427",
+    "email": " USER@EXAMPLE.COM ",
+    "department": "FIN"
+  },
+  {
+    "employee_id": "00428",
+    "email": "JANE@EXAMPLE.COM",
+    "department": "HR"
+  },
+  {
+    "employee_id": "00429",
+    "email": "ALEX@EXAMPLE.COM",
+    "department": "OPS"
+  }
+]

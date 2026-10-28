@@ -1,0 +1,27 @@
+﻿# Compiled binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test and coverage outputs
+*.test
+*.out
+coverage.html
+
+# Generated validation reports
+/reports/
+
+# Secrets and local environment configuration
+.env
+.env.*
+!.env.example
+
+# Editors
+.vscode/
+.idea/
+
+# Operating system files
+.DS_Store
+Thumbs.db

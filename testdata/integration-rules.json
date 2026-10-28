@@ -1,0 +1,28 @@
+
+{
+  "name": "HR-to-Payroll Integration",
+  "match_key": {
+    "source_field": "employee_id",
+    "destination_field": "staffCode"
+  },
+  "rules": [
+    {
+      "source_field": "employee_id",
+      "destination_field": "staffCode",
+      "required": true,
+      "normalization": "none"
+    },
+    {
+      "source_field": "email",
+      "destination_field": "emailAddress",
+      "required": true,
+      "normalization": "trim_lowercase"
+    },
+    {
+      "source_field": "department",
+      "destination_field": "departmentCode",
+      "required": true,
+      "normalization": "trim_lowercase"
+    }
+  ]
+}

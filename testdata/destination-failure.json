@@ -1,0 +1,18 @@
+
+[
+  {
+    "staffCode": "00427",
+    "emailAddress": "user@example.com",
+    "departmentCode": "sales"
+  },
+  {
+    "staffCode": "00429",
+    "emailAddress": "alex@example.com",
+    "departmentCode": "ops"
+  },
+  {
+    "staffCode": "00999",
+    "emailAddress": "unknown@example.com",
+    "departmentCode": "finance"
+  }
+]
