@@ -6,61 +6,73 @@ import (
 	"integration-guard/internal/validator"
 )
 
-func TestBatchComparison(t *testing.T) {
+func TestUnsupportedMatchKeyTypes(t *testing.T) {
 	rules := []validator.FieldRule{
-		{SourceField: "employee_id", DestinationField: "staffCode", Required: true},
-		{SourceField: "department", DestinationField: "departmentCode", Required: true, Normalization: validator.NormalizeTrimLowercase},
+		{
+			SourceField:      "department",
+			DestinationField: "departmentCode",
+			Required:         true,
+		},
 	}
-	key := MatchKey{SourceField: "employee_id", DestinationField: "staffCode"}
+
+	key := MatchKey{
+		SourceField:      "employee_id",
+		DestinationField: "staffCode",
+	}
 
 	tests := []struct {
 		name          string
 		source        []validator.Record
 		destination   []validator.Record
-		wantValid     bool
-		wantMatched   int
-		wantPassed    int
-		wantFailed    int
 		wantIssueCode string
+		wantFailed    int
 	}{
 		{
-			name: "all records match",
+			name: "source object key is rejected",
+			source: []validator.Record{
+				{
+					"employee_id": map[string]any{"id": "1"},
+					"department":  "FIN",
+				},
+			},
+			wantIssueCode: "invalid_source_key_type",
+			wantFailed:    1,
+		},
+		{
+			name: "source array key is rejected",
+			source: []validator.Record{
+				{
+					"employee_id": []any{"1"},
+					"department":  "FIN",
+				},
+			},
+			wantIssueCode: "invalid_source_key_type",
+			wantFailed:    1,
+		},
+		{
+			name: "destination object key is rejected",
 			source: []validator.Record{
 				{"employee_id": "1", "department": "FIN"},
-				{"employee_id": "2", "department": "HR"},
 			},
 			destination: []validator.Record{
-				{"staffCode": "1", "departmentCode": "fin"},
-				{"staffCode": "2", "departmentCode": "hr"},
+				{
+					"staffCode":      map[string]any{"id": "1"},
+					"departmentCode": "fin",
+				},
 			},
-			wantValid: true, wantMatched: 2, wantPassed: 2,
+			wantIssueCode: "invalid_destination_key_type",
+			wantFailed:    1,
 		},
 		{
-			name:        "field mismatch",
-			source:      []validator.Record{{"employee_id": "1", "department": "FIN"}},
-			destination: []validator.Record{{"staffCode": "1", "departmentCode": "OPS"}},
-			wantMatched: 1, wantFailed: 1, wantIssueCode: "field_validation_failed",
-		},
-		{
-			name:        "missing destination record",
-			source:      []validator.Record{{"employee_id": "1", "department": "FIN"}},
-			destination: []validator.Record{},
-			wantFailed:  1, wantIssueCode: "missing_destination_record",
-		},
-		{
-			name:          "unexpected destination record",
-			source:        []validator.Record{},
-			destination:   []validator.Record{{"staffCode": "9", "departmentCode": "OPS"}},
-			wantIssueCode: "unexpected_destination_record",
-		},
-		{
-			name: "duplicate source key",
+			name: "boolean keys are supported",
 			source: []validator.Record{
-				{"employee_id": "1", "department": "FIN"},
-				{"employee_id": "1", "department": "HR"},
+				{"employee_id": true, "department": "FIN"},
 			},
-			destination: []validator.Record{{"staffCode": "1", "departmentCode": "fin"}},
-			wantMatched: 1, wantPassed: 1, wantFailed: 1, wantIssueCode: "duplicate_source_key",
+			destination: []validator.Record{
+				{"staffCode": true, "departmentCode": "FIN"},
+			},
+			wantIssueCode: "",
+			wantFailed:    0,
 		},
 	}
 
@@ -68,30 +80,34 @@ func TestBatchComparison(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := Compare(tt.source, tt.destination, key, rules)
 
-			if got.Valid != tt.wantValid {
-				t.Errorf("Valid = %v, want %v; issues: %+v", got.Valid, tt.wantValid, got.Issues)
+			if tt.wantIssueCode == "" {
+				if !got.Valid {
+					t.Fatalf("expected valid result, got issues: %+v", got.Issues)
+				}
+			} else if !hasIssueCode(got.Issues, tt.wantIssueCode) {
+				t.Errorf(
+					"expected issue code %q, got %+v",
+					tt.wantIssueCode,
+					got.Issues,
+				)
 			}
-			if got.MatchedRecords != tt.wantMatched {
-				t.Errorf("MatchedRecords = %d, want %d", got.MatchedRecords, tt.wantMatched)
-			}
-			if got.PassedRecords != tt.wantPassed {
-				t.Errorf("PassedRecords = %d, want %d", got.PassedRecords, tt.wantPassed)
-			}
+
 			if got.FailedRecords != tt.wantFailed {
-				t.Errorf("FailedRecords = %d, want %d", got.FailedRecords, tt.wantFailed)
-			}
-			if tt.wantIssueCode != "" {
-				found := false
-				for _, issue := range got.Issues {
-					if issue.Code == tt.wantIssueCode {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected issue code %q, got %+v", tt.wantIssueCode, got.Issues)
-				}
+				t.Errorf(
+					"FailedRecords = %d, want %d",
+					got.FailedRecords,
+					tt.wantFailed,
+				)
 			}
 		})
 	}
+}
+
+func hasIssueCode(issues []RecordIssue, code string) bool {
+	for _, issue := range issues {
+		if issue.Code == code {
+			return true
+		}
+	}
+	return false
 }

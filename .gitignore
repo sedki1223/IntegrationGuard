@@ -25,3 +25,7 @@ coverage.html
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Node.js frontend dependencies and build output
+node_modules/
+dist/

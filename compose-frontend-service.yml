@@ -1,0 +1,12 @@
+# Merge this service into your existing docker-compose.yml under `services:`.
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: integration-guard-frontend
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "5173:80"
+    restart: unless-stopped

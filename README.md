@@ -1,7 +1,6 @@
-
 # Integration Guard
 
-Integration Guard is a data integration validation tool written in Go. It compares records from source and destination systems to detect transformation errors, missing records, unexpected records, and field-level mismatches.
+Integration Guard is a data integration validation tool written in Go. It compares records from source and destination systems to detect transformation errors, missing records, unexpected records, duplicate keys, and field-level mismatches.
 
 The goal is to identify integration defects before they reach production.
 
@@ -11,10 +10,14 @@ The goal is to identify integration defects before they reach production.
 - Required-field validation
 - Explicit string normalization
 - Batch record matching using configurable keys
-- Detection of missing, unexpected, and duplicate records
+- Type-sensitive matching for supported scalar identifiers
+- Rejection of unsupported match-key types
+- Detection of missing source and destination match keys
+- Detection of duplicate source keys and ambiguous duplicate destination keys
+- Detection of missing destination records and unexpected destination records
 - Structured field-level diagnostics
 - JSON reports written to standard output and optionally to a file
-- Nonzero process exit status when validation fails
+- Distinct exit codes for validation failures and operational errors
 - Automated tests and GitHub Actions CI
 
 ## Requirements
@@ -51,6 +54,8 @@ The invalid example is expected to exit with status `1`. It demonstrates detecti
 - A source record missing from the destination
 - An unexpected destination record
 
+Generated reports are written to the specified path. Create the report directory first if it does not exist.
+
 ## Configuration
 
 The default configuration is `testdata/integration-rules.json`.
@@ -83,7 +88,14 @@ Example:
 }
 ```
 
-Supported normalization values are `none` and `trim_lowercase`. An omitted normalization value uses the default behavior.
+Supported normalization values are:
+
+- `none`
+- `trim_lowercase`
+
+An omitted normalization value uses the default behavior.
+
+The source and destination field names may differ, allowing the validator to compare fields that have been renamed during an integration.
 
 ## Command-line options
 
@@ -95,6 +107,40 @@ Supported normalization values are `none` and `trim_lowercase`. An omitted norma
 | `-report` | Empty | Optional report output path |
 
 Payload files can contain one JSON object or an array of objects.
+
+## Batch matching and reconciliation
+
+When a match key is configured, Integration Guard uses the specified source and destination fields to associate records before validating their mapped fields.
+
+The batch validator reports conditions including:
+
+- Missing source or destination match keys
+- Unsupported match-key types
+- Duplicate source keys
+- Duplicate destination keys that make matching ambiguous
+- Source records without a matching destination record
+- Destination records without a matching source record
+- Field-validation failures within matched records
+
+Supported match keys are scalar identifiers, such as strings, numbers, and booleans. Missing keys, `null` values, arrays, and objects are not accepted as valid identifiers.
+
+Matching is type-sensitive. For example, the string `"427"` and the number `427` are treated as different identifiers. Identifiers with leading zeros should be represented as strings when those zeros are significant.
+
+Duplicate destination keys are treated as ambiguous. Integration Guard does not silently select one of the duplicate records for field validation.
+
+## Reports and record counts
+
+The JSON report includes the integration name, input file paths, validation result, record counts, and detected issues.
+
+The batch result distinguishes these counts:
+
+- `source_records`: number of source records supplied
+- `destination_records`: number of destination records supplied
+- `matched_records`: source records matched to an unambiguous destination record and evaluated by the field validator
+- `passed_records`: matched source records that passed field validation
+- `failed_records`: source records that could not be validated successfully
+
+**`failed_records` is not the total number of reported issues.** Unexpected destination records are reported as issues but do not increase the failed source-record count.
 
 ## Exit behavior
 
@@ -108,11 +154,21 @@ A failed validation is not the same as a tool error: the former means the compar
 
 ## Run tests
 
+Run all Go tests:
+
 ```bash
 go test ./...
 ```
 
-GitHub Actions runs formatting checks, tests, and both demonstration scenarios on pushes and pull requests.
+Check Go formatting:
+
+```bash
+gofmt -l ./cmd ./internal
+```
+
+The formatting command should produce no output when all Go files are formatted correctly.
+
+GitHub Actions checks formatting, runs the test suite, verifies the successful demo, and verifies that the intentionally invalid demo is rejected with the expected validation errors.
 
 ## Architecture
 
@@ -121,9 +177,18 @@ GitHub Actions runs formatting checks, tests, and both demonstration scenarios o
 - `internal/validator`: field-level comparison and normalization
 - `internal/batch`: matching and reconciliation across record collections
 - `testdata`: valid and intentionally invalid sample integrations
+- `docs/incidents`: documented integration incident scenarios
+
+## Incident case study
+
+The repository includes a simulated HR-to-Payroll incident case study documenting a department mismatch, a missing destination record, and an unexpected destination record.
+
+The case study describes investigation steps, possible causes, remediation options, and regression testing. It does not claim a confirmed root cause or verified remediation because the scenario uses test fixtures rather than a live production system.
 
 ## Current scope and limitations
 
 Integration Guard currently compares JSON payloads supplied as files. It does not connect directly to HR systems, payroll platforms, databases, or message brokers.
+
+It identifies validation defects but does not independently determine their underlying cause, inspect live system logs, repair records, or verify production deployments.
 
 The current scope focuses on the validation engine, batch reconciliation, diagnostic reporting, and automated verification. External connectors and a user interface can be considered after the core behavior is dependable.

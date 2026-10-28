@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: integration-guard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: integration_guard
+      POSTGRES_USER: integration_guard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - integration_guard_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U integration_guard -d integration_guard"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: integration-guard-api
+    restart: unless-stopped
+    environment:
+      API_ADDR: ":8080"
+      DATABASE_URL: postgres://integration_guard:${POSTGRES_PASSWORD:-local_dev_change_me}@postgres:5432/integration_guard?sslmode=disable
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: integration-guard-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  integration_guard_pgdata:
